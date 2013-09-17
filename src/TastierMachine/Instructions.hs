@@ -24,6 +24,7 @@ data Instruction = Add
                  | Read
                  | Write
                  | Halt
+                 | Dup
                  deriving (Eq, Ord, Show, Enum)
 
 data InstructionWord = Nullary Instruction

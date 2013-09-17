@@ -1,10 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables, DoAndIfThenElse #-}
 module TastierMachine.Bytecode where
 import qualified TastierMachine.Instructions as Instructions
-import qualified Data.ByteString.Lazy as B
-import qualified Data.Word as W
-import qualified Data.Tuple as T
-import qualified Data.Maybe as M
 import qualified Data.Binary.Get as G
 import qualified Data.Binary.Put as P
 
