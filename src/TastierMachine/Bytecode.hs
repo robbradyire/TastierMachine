@@ -38,16 +38,16 @@ save [] = return ()
 save (i:rest) = do
   case i of
     (Instructions.Nullary inst) -> do
-      P.putWord16be $ fromInteger $ fromIntegral $ fromEnum inst
+      P.putWord8 $ fromInteger $ fromIntegral $ fromEnum inst
       save rest
 
     (Instructions.Unary inst a) -> do
-      P.putWord16be $ fromInteger $ fromIntegral $ fromEnum inst
+      P.putWord8 $ fromInteger $ fromIntegral $ fromEnum inst
       P.putWord16be $ fromInteger $ fromIntegral $ fromEnum a
       save rest
 
     (Instructions.Binary inst a b) -> do
-      P.putWord16be $ fromInteger $ fromIntegral $ fromEnum inst
+      P.putWord8 $ fromInteger $ fromIntegral $ fromEnum inst
       P.putWord16be $ fromInteger $ fromIntegral $ fromEnum a
       P.putWord16be $ fromInteger $ fromIntegral $ fromEnum b
       save rest

@@ -19,7 +19,10 @@ main = do
     bytecodeFile <- B.readFile (args !! 0)
     let instructions = G.runGet Bytecode.load bytecodeFile
     let program::(A.Array I.Int16 Instructions.InstructionWord) = (A.listArray (0, fromIntegral $ (length instructions)-1) instructions)
-    let machine = (Machine.Machine 0 0 0 0 program (A.listArray (0,0) [0]) (A.listArray (0,0) [0]))
-    putStrLn $ show $ S.execState Machine.run machine
+    putStrLn $ show program
+    let machine = (Machine.Machine 0 0 0 0 program
+                    (A.listArray (0,4095) (take 4096 $ cycle [0]))
+                    (A.listArray (0,4095) (take 4096 $ cycle [0])))
+    putStrLn $ show $ Machine.smem $ S.execState Machine.run machine
   else
     error $ "Usage: TastierMachine <bytecode file>"
