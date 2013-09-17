@@ -3,9 +3,10 @@ module TastierMachine.Machine where
 import qualified TastierMachine.Instructions as Instructions
 import qualified Data.Int as I
 import qualified Data.Bits as B
-import Data.Array ((//), (!), Array)
+import Data.Array ((//), (!), Array, elems)
 import qualified Data.Word as W
 import qualified Control.Monad.State as S
+--import System.IO.Unsafe
 
 data Machine = Machine { rpc :: I.Int16,  -- mutable register containing the address of the next instruction to execute
                          rtp :: I.Int16,  -- mutable register containing the address of the top of the stack
@@ -17,6 +18,9 @@ data Machine = Machine { rpc :: I.Int16,  -- mutable register containing the add
                          smem :: (Array I.Int16 I.Int16)  -- stack memory
                        }
                        deriving (Show)
+
+--debug m@(Machine rpc rtp rbp rcc _ _ smem) = unsafePerformIO $ do { putStrLn $ (show [rpc, rtp, rbp, rcc]) ++ (show $ take 4 $ elems smem) ; return m }
+--debug' x = unsafePerformIO $ do { putStrLn $ show x; return x }
 
 run :: S.State Machine ()
 run = do
@@ -31,66 +35,66 @@ run = do
           return ()
 
         Instructions.Add -> do
-          let a = smem ! rtp-1
+          let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = a + b
           S.put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Sub    -> do
-          let a = smem ! rtp-1
+          let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = a - b
           S.put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Mul    -> do
-          let a = smem ! rtp-1
+          let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = a * b
           S.put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Div    -> do
-          let a = smem ! rtp-1
+          let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = a `div` b
           S.put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Equ    -> do
-          let a = smem ! rtp-1
+          let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = fromIntegral $ fromEnum (a == b)
           S.put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Lss    -> do
-          let a = smem ! rtp-1
+          let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = fromIntegral $ fromEnum (a < b)
           S.put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Gtr    -> do
-          let a = smem ! rtp-1
+          let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = fromIntegral $ fromEnum (a > b)
           S.put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Neg    -> do
-          let a = smem ! rtp-1
+          let a = smem ! (rtp-1)
           let result = B.complement a
           S.put $ machine { rpc = rpc + 1, smem = (smem // [(rtp-1, result)]) }
           run
 
         Instructions.Ret    -> do
-          S.put $ machine { rpc = (smem ! rtp-1), rtp = rtp - 1 }
+          S.put $ machine { rpc = (smem ! (rtp-1)), rtp = rtp - 1 }
           run
 
         Instructions.Leave  -> do
-          S.put $ machine { rtp = rbp+1, rbp = (smem ! rbp+3) }
+          S.put $ machine { rtp = rbp+1, rbp = (smem ! (rbp+3)) }
           run
 
         Instructions.Read   -> do
@@ -104,7 +108,7 @@ run = do
     Instructions.Unary i a ->
       case i of
         Instructions.StoG   -> do
-          S.put $ machine { rpc = rpc + 1, rtp = rtp - 1, dmem = (dmem // [(a, (smem ! rtp-1))]) }
+          S.put $ machine { rpc = rpc + 1, rtp = rtp - 1, dmem = (dmem // [(a, (smem ! (rtp-1)))]) }
           run
 
         Instructions.LoadG  -> do
@@ -116,9 +120,9 @@ run = do
           run
 
         Instructions.Enter  -> do
-          let lexicalLevelDelta = (smem ! rtp-1)
+          let lexicalLevelDelta = (smem ! (rtp-1))
           if lexicalLevelDelta == 0 then do -- calling a procedure at the same level as the current one
-            S.put $ machine { rtp = rtp+a+2, rbp = rtp-2, smem = (smem // [(rtp, (smem ! rbp+2)), (rtp+1, rbp)]) }
+            S.put $ machine { rtp = rtp+a+2, rbp = rtp-2, smem = (smem // [(rtp, (smem ! (rbp+2))), (rtp+1, rbp)]) }
             run
           else do -- calling a procedure at a different level than the current one
             let calleeStaticLinkFieldAddr = followChain 1 lexicalLevelDelta rbp smem
@@ -130,7 +134,7 @@ run = do
           run
 
         Instructions.FJmp -> do
-          let jump = smem ! rtp-1
+          let jump = smem ! (rtp-1)
           if jump /= 0 then do
             S.put $ machine { rtp = rtp - 1, rpc = a }
             run
@@ -147,7 +151,7 @@ run = do
 
         Instructions.Sto    -> do
           let storeAddr = (followChain 0 a rbp smem) + b + 4
-          S.put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(storeAddr, (smem ! rtp-1))]) }
+          S.put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(storeAddr, (smem ! (rtp-1)))]) }
           run
 
         Instructions.Call   -> do
