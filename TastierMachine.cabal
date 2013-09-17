@@ -17,5 +17,5 @@ cabal-version:       >=1.8
 executable TastierMachine
   main-is:             TastierMachine/Main.hs
   other-modules:       TastierMachine.Instructions, TastierMachine.Bytecode, TastierMachine.Machine
-  build-depends:       base, bytestring, array, mtl
+  build-depends:       base, bytestring, binary, array, mtl
   hs-source-dirs:      src

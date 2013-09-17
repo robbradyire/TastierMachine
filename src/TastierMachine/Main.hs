@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, DoAndIfThenElse #-}
 module Main where
 import qualified TastierMachine.Machine as Machine
 import qualified TastierMachine.Instructions as Instructions
@@ -8,9 +8,18 @@ import qualified Data.Array as A
 import qualified Data.Word as W
 import qualified Data.Int as I
 import System.IO
+import qualified Data.ByteString.Lazy as B
+import System.Environment (getArgs)
+import qualified Data.Binary.Get as G
+import qualified Data.Binary.Put as P
 
 main = do
-  let instructions::[W.Word8] = map (fromInteger . fromIntegral . fromEnum) [Instructions.Halt]
-  let program::(A.Array I.Int16 W.Word8) = (A.listArray (0,0) instructions)
-  let machine = (Machine.Machine 0 0 0 0 program (A.listArray (0,0) [0]) (A.listArray (0,0) [0]))
-  putStrLn $ show $ S.execState Machine.run machine
+  args <- getArgs
+  if length args == 1 then do
+    bytecodeFile <- B.readFile (args !! 0)
+    let instructions = G.runGet Bytecode.load bytecodeFile
+    let program::(A.Array I.Int16 Instructions.InstructionWord) = (A.listArray (0, fromIntegral $ (length instructions)-1) instructions)
+    let machine = (Machine.Machine 0 0 0 0 program (A.listArray (0,0) [0]) (A.listArray (0,0) [0]))
+    putStrLn $ show $ S.execState Machine.run machine
+  else
+    error $ "Usage: TastierMachine <bytecode file>"
