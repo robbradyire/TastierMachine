@@ -14,8 +14,13 @@ maintainer:          aanderso@tcd.ie
 build-type:          Simple
 cabal-version:       >=1.8
 
-executable TastierMachine
+executable tvm
   main-is:             TastierMachine/Main.hs
   other-modules:       TastierMachine.Instructions, TastierMachine.Bytecode, TastierMachine.Machine
+  build-depends:       base, bytestring, binary, array, mtl
+  hs-source-dirs:      src
+
+executable tasm
+  main-is:             TastierAssembler/Main.hs
   build-depends:       base, bytestring, binary, array, mtl
   hs-source-dirs:      src

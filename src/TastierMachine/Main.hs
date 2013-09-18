@@ -29,4 +29,4 @@ main = do
     let (machine'', output) = execRWS Machine.run inputData machine'
     putStrLn $ show output
   else
-    error $ "Usage: TastierMachine <bytecode file> <data file>"
+    error $ "Usage: tvm <input bytecode file> <input data file>"
