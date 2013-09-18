@@ -136,7 +136,7 @@ run = do
 
         Instructions.FJmp -> do
           let jump = smem ! (rtp-1)
-          if jump /= 0 then do
+          if jump == 0 then do
             put $ machine { rtp = rtp - 1, rpc = a }
             run
           else do
