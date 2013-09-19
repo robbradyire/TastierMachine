@@ -13,10 +13,15 @@ import Control.Monad.RWS.Lazy (execRWS)
 import System.Environment (getArgs)
 import Data.Maybe (fromJust)
 
-parse :: [[B.ByteString]] -> [Instructions.InstructionWord]
+commentOpenString = ";;"
+
+parse :: [(Int, B.ByteString)] -> [Instructions.InstructionWord]
 parse [] = []
-parse (h:rest) =
-  (case h of
+parse ((lineNumber, text):rest) =
+  if B.isPrefixOf commentOpenString text then --the line is a comment
+    parse rest
+  else
+  (case B.words text of
     ["Add"]         -> Instructions.Nullary Instructions.Add
     ["Sub"]         -> Instructions.Nullary Instructions.Sub
     ["Mul"]         -> Instructions.Nullary Instructions.Mul
@@ -40,6 +45,7 @@ parse (h:rest) =
     ["Write"]       -> Instructions.Nullary Instructions.Write
     ["Halt"]        -> Instructions.Nullary Instructions.Halt
     ["Dup"]         -> Instructions.Nullary Instructions.Dup
+    _               -> error $ "Unknown instruction on line " ++ show lineNumber ++ ": " ++ show text
   )
   : (parse rest)
 
@@ -47,8 +53,8 @@ main = do
   args <- getArgs
   if length args == 2 then do
     assemblerFile <- B.readFile (args !! 0)
-    let chunks = map B.words $ filter (not . B.null) $ filter (not . B.isPrefixOf ";;") $ map (B.dropWhile isSpace) $ B.lines assemblerFile
-    let instructions = parse chunks
+    let chunks = map (B.dropWhile isSpace) $ B.lines assemblerFile
+    let instructions = parse $ zip [1..(length chunks)] chunks
     B.writeFile (args !! 1) $ P.runPut $ Bytecode.save instructions
   else
     error $ "Usage: tasm <input assembler file> <output bytecode file>"

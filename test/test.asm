@@ -15,6 +15,7 @@
  Const 1
  Add
  Dup
+ NotARealInstruction 0 2
  StoG 0
  ;; store the new increment, top of stack is the increment
  Const 11
