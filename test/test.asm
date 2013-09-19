@@ -6,19 +6,19 @@
  StoG 1
  ;; address 1 contains the sum
  LOOPSTART: LoadG 0
- Dup
- LoadG 1
- Add
- StoG 1
- ;; top of stack is the number we added
- Const 1
- Add
- Dup
- StoG 0
- ;; store the new increment, top of stack is the increment
- Const 11
- Equ
- FJmp LOOPSTART
+            Dup
+            LoadG 1
+            Add
+            StoG 1
+            ;; top of stack is the number we added
+            Const 1
+            Add
+            Dup
+            StoG 0
+            ;; store the new increment, top of stack is the increment
+            Const 11
+            Equ
+            FJmp LOOPSTART
  ;; if the increment has not reached 10, jump back to LOOPSTART
  ;; finally, write out the total
  LoadG 1
