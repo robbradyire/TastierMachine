@@ -1,4 +1,45 @@
 {-# LANGUAGE DoAndIfThenElse #-}
+{- |
+  This module contains the implementation of the virtual machine which
+  executes the instruction set from "TastierMachine.Instructions".
+
+  The virtual processor has 4096 words of random-access data memory,
+  and 4096 words of stack memory.
+
+  The size of a machine word is 16 bits, and the storage format is
+  big-endian (the first byte in the word is the most significant),
+  or in other words, the two bytes in the word are 16 continuous
+  bits in memory, going from most significant (bit 15) down to least
+  significant (bit 0).
+
+  The machine has four state registers which can be loaded onto the
+  stack for manipulation, and stored back again. One of the registers,
+  rcc has a special purpose: it's the condition code register where
+  exceptions are notified to the program. For example, when an arithmetic
+  operation causes an overflow, a particular bit in rcc will be set.
+
+  The bit layout of rcc is as follows:
+
+@
+  15: Unused
+  14: Unused
+  13: Unused
+  12: Unused
+  11: Unused
+  10: Unused
+  9: Unused
+  8: Unused
+  7: Unused
+  6: Unused
+  5: Unused
+  4: Unused
+  3: Unused
+  2: Unused
+  1: address error - this bit is set when an operation accesses an out of bounds memory address
+  0: overflow bit - this bit is set when an operation overflows 16 bits and cleared at the start of the next cycle
+@
+
+-}
 module TastierMachine.Machine where
 import qualified TastierMachine.Instructions as Instructions
 import Data.Int (Int8, Int16)
@@ -6,16 +47,20 @@ import Data.Bits (complement)
 import Data.Array ((//), (!), Array, elems)
 import Control.Monad.RWS.Lazy (RWS, put, get, ask, tell, local)
 
-data Machine = Machine { rpc :: Int16,  -- mutable register containing the address of the next instruction to execute
-                         rtp :: Int16,  -- mutable register containing the address of the top of the stack
-                         rbp :: Int16,  -- mutable register containing the address of the base of the stack
-                         rcc :: Int16,  -- mutable register containing condition codes after operations
+data Machine = Machine { rpc :: Int16,  -- ^ register containing the address of the next instruction to execute
+                         rtp :: Int16,  -- ^ register containing the address of the top of the stack
+                         rbp :: Int16,  -- ^ register containing the address of the base of the stack
+                         rcc :: Int16,  -- ^ register containing condition codes after operations
 
-                         imem :: (Array Int16 Instructions.InstructionWord), -- instruction memory
-                         dmem :: (Array Int16 Int16), -- data memory
-                         smem :: (Array Int16 Int16)  -- stack memory
+                         imem :: (Array Int16 Instructions.InstructionWord), -- ^ instruction memory
+                         dmem :: (Array Int16 Int16), -- ^ data memory
+                         smem :: (Array Int16 Int16)  -- ^ stack memory
                        }
                        deriving (Show)
+
+{- |
+  This function implements the internal state machine executing the instructions.
+-}
 
 run :: RWS [Int16] [Int16] Machine ()
 run = do
@@ -109,11 +154,21 @@ run = do
     Instructions.Unary i a ->
       case i of
         Instructions.StoG   -> do
-          put $ machine { rpc = rpc + 1, rtp = rtp - 1, dmem = (dmem // [(a, (smem ! (rtp-1)))]) }
+          case a of
+            0 -> put $ machine { rpc = (smem ! (rtp-1)), rtp = rtp - 1 }
+            1 -> put $ machine { rpc = rpc + 1, rtp = (smem ! (rtp-1)) }
+            2 -> put $ machine { rpc = rpc + 1, rtp = rtp - 1, rbp = (smem ! (rtp-1)) }
+            3 -> put $ machine { rpc = rpc + 1, rtp = rtp - 1, rcc = (smem ! (rtp-1)) }
+            _ -> put $ machine { rpc = rpc + 1, rtp = rtp - 1, dmem = (dmem // [(a-4, (smem ! (rtp-1)))]) }
           run
 
         Instructions.LoadG  -> do
-          put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, (dmem ! a))]) }
+          case a of
+            0 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, rpc)]) }
+            1 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, rtp)]) }
+            2 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, rbp)]) }
+            3 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, rcc)]) }
+            _ -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, (dmem ! (a-4)))]) }
           run
 
         Instructions.Const  -> do
