@@ -5,56 +5,105 @@ import qualified TastierMachine.Instructions as Instructions
 import qualified TastierMachine.Bytecode as Bytecode
 import Data.Array (Array, listArray)
 import Data.Int (Int16)
-import Data.Char (isSpace)
+import Data.Char (isSpace, isAlphaNum)
 import qualified Data.Binary.Get as G
 import qualified Data.Binary.Put as P
 import qualified Data.ByteString.Lazy.Char8 as B
 import Control.Monad.RWS.Lazy (execRWS)
 import System.Environment (getArgs)
 import Data.Maybe (fromJust)
+import qualified Data.Map as M
+import qualified Control.Monad.RWS.Lazy as RWS
 
 commentOpenString = ";;"
 
-parse :: [(Int, B.ByteString)] -> [Instructions.InstructionWord]
-parse [] = []
-parse ((lineNumber, text):rest) =
-  if B.isPrefixOf commentOpenString text then --the line is a comment
-    parse rest
-  else
-  (case B.words text of
-    ["Add"]         -> Instructions.Nullary Instructions.Add
-    ["Sub"]         -> Instructions.Nullary Instructions.Sub
-    ["Mul"]         -> Instructions.Nullary Instructions.Mul
-    ["Div"]         -> Instructions.Nullary Instructions.Div
-    ["Equ"]         -> Instructions.Nullary Instructions.Equ
-    ["Lss"]         -> Instructions.Nullary Instructions.Lss
-    ["Gtr"]         -> Instructions.Nullary Instructions.Gtr
-    ["Neg"]         -> Instructions.Nullary Instructions.Neg
-    ["Load", a, b]  -> Instructions.Binary Instructions.Load (fromIntegral $ fst $ fromJust $ B.readInteger a) (fromIntegral $ fst $ fromJust $ B.readInteger b)
-    ["Sto", a, b]   -> Instructions.Binary Instructions.Sto (fromIntegral $ fst $ fromJust $ B.readInteger a) (fromIntegral $ fst $ fromJust $ B.readInteger b)
-    ["Call", a, b]  -> Instructions.Binary Instructions.Call (fromIntegral $ fst $ fromJust $ B.readInteger a) (fromIntegral $ fst $ fromJust $ B.readInteger b)
-    ["LoadG", a]    -> Instructions.Unary Instructions.LoadG (fromIntegral $ fst $ fromJust $ B.readInteger a)
-    ["StoG", a]     -> Instructions.Unary Instructions.StoG (fromIntegral $ fst $ fromJust $ B.readInteger a)
-    ["Const", a]    -> Instructions.Unary Instructions.Const (fromIntegral $ fst $ fromJust $ B.readInteger a)
-    ["Enter", a]    -> Instructions.Unary Instructions.Enter (fromIntegral $ fst $ fromJust $ B.readInteger a)
-    ["Jmp", a]      -> Instructions.Unary Instructions.Jmp (fromIntegral $ fst $ fromJust $ B.readInteger a)
-    ["FJmp", a]     -> Instructions.Unary Instructions.FJmp (fromIntegral $ fst $ fromJust $ B.readInteger a)
-    ["Ret"]         -> Instructions.Nullary Instructions.Ret
-    ["Leave"]       -> Instructions.Nullary Instructions.Leave
-    ["Read"]        -> Instructions.Nullary Instructions.Read
-    ["Write"]       -> Instructions.Nullary Instructions.Write
-    ["Halt"]        -> Instructions.Nullary Instructions.Halt
-    ["Dup"]         -> Instructions.Nullary Instructions.Dup
-    _               -> error $ "Unknown instruction on line " ++ show lineNumber ++ ": " ++ show text
-  )
-  : (parse rest)
+parseInstruction :: Int -> B.ByteString -> (Either [B.ByteString] Instructions.InstructionWord)
+parseInstruction lineNumber text =
+      case B.words text of
+        ["Add"]         -> Right $ Instructions.Nullary Instructions.Add
+        ["Sub"]         -> Right $ Instructions.Nullary Instructions.Sub
+        ["Mul"]         -> Right $ Instructions.Nullary Instructions.Mul
+        ["Div"]         -> Right $ Instructions.Nullary Instructions.Div
+        ["Equ"]         -> Right $ Instructions.Nullary Instructions.Equ
+        ["Lss"]         -> Right $ Instructions.Nullary Instructions.Lss
+        ["Gtr"]         -> Right $ Instructions.Nullary Instructions.Gtr
+        ["Neg"]         -> Right $ Instructions.Nullary Instructions.Neg
+        ["Load", a, b]  -> Right $ Instructions.Binary Instructions.Load (fromIntegral $ fst $ fromJust $ B.readInteger a) (fromIntegral $ fst $ fromJust $ B.readInteger b)
+        ["Sto", a, b]   -> Right $ Instructions.Binary Instructions.Sto (fromIntegral $ fst $ fromJust $ B.readInteger a) (fromIntegral $ fst $ fromJust $ B.readInteger b)
+        ["Call", a, b]  -> Right $ Instructions.Binary Instructions.Call (fromIntegral $ fst $ fromJust $ B.readInteger a) (fromIntegral $ fst $ fromJust $ B.readInteger b)
+        ["LoadG", a]    -> Right $ Instructions.Unary Instructions.LoadG (fromIntegral $ fst $ fromJust $ B.readInteger a)
+        ["StoG", a]     -> Right $ Instructions.Unary Instructions.StoG (fromIntegral $ fst $ fromJust $ B.readInteger a)
+        ["Const", a]    -> Right $ Instructions.Unary Instructions.Const (fromIntegral $ fst $ fromJust $ B.readInteger a)
+        ["Enter", a]    -> Right $ Instructions.Unary Instructions.Enter (fromIntegral $ fst $ fromJust $ B.readInteger a)
+        ["Jmp", a]      ->  case B.readInteger a of
+                              Just i -> Right $ Instructions.Unary Instructions.Jmp (fromIntegral $ fst i)
+                              _ -> Left $ ["Jmp", a]
+
+        ["FJmp", a]     ->  case B.readInteger a of
+                              Just i -> Right $ Instructions.Unary Instructions.FJmp (fromIntegral $ fst i)
+                              _ -> Left $ ["FJmp", a]
+
+        ["Ret"]         -> Right $ Instructions.Nullary Instructions.Ret
+        ["Leave"]       -> Right $ Instructions.Nullary Instructions.Leave
+        ["Read"]        -> Right $ Instructions.Nullary Instructions.Read
+        ["Write"]       -> Right $ Instructions.Nullary Instructions.Write
+        ["Halt"]        -> Right $ Instructions.Nullary Instructions.Halt
+        ["Dup"]         -> Right $ Instructions.Nullary Instructions.Dup
+        _               -> error $ "Unknown instruction on line " ++ show lineNumber ++ ": " ++ show text
+
+parse :: RWS.RWS [B.ByteString] [(Either [B.ByteString] Instructions.InstructionWord)] (Int, Int, M.Map B.ByteString Int) ()
+parse = do
+  (lineNumber, instNumber, symbolTable) <- RWS.get
+  sourceCode <- RWS.ask
+  if lineNumber > length sourceCode then return ()
+  else do
+    let currentLine = sourceCode !! (lineNumber-1)
+    if B.isPrefixOf commentOpenString currentLine then do --the line is a comment
+      RWS.put (lineNumber+1, instNumber, symbolTable)
+      parse
+    else do
+      let mightBeLabelText = B.takeWhile isAlphaNum currentLine
+      let restOfLine = B.drop (B.length mightBeLabelText) currentLine
+
+      if ((B.length mightBeLabelText) > 0) then --could be a label
+        if B.null restOfLine then do --can only be an instruction
+          RWS.put (lineNumber+1, instNumber+1, symbolTable)
+          RWS.tell $ [parseInstruction instNumber currentLine]
+          parse
+        else if (B.head restOfLine) == ':' then --definitely a label
+          if M.member mightBeLabelText symbolTable then
+            error $ "Multiple definitions of the label " ++ (show mightBeLabelText) ++ " (line " ++ (show $ symbolTable M.! mightBeLabelText) ++ ", line " ++ (show lineNumber) ++ ")"
+          else do
+            RWS.put (lineNumber+1, instNumber+1, M.insert mightBeLabelText instNumber symbolTable)
+            RWS.tell $ [parseInstruction instNumber $ B.tail restOfLine]
+            parse
+        else do
+          RWS.put (lineNumber+1, instNumber+1, symbolTable)
+          RWS.tell $ [parseInstruction instNumber currentLine]
+          parse
+      else do
+        RWS.put (lineNumber+1, instNumber+1, symbolTable)
+        RWS.tell $ [parseInstruction instNumber currentLine]
+        parse
+
+patchLabelAddresses symtab instructions =
+  map (patchLabel symtab) instructions
+  where
+    patchLabel symtab (lineNumber, (Right x)) = x
+    patchLabel symtab (lineNumber, (Left x)) =
+      case x of
+        ["Jmp", a]  -> if M.member a symtab then Instructions.Unary Instructions.Jmp (fromIntegral $ symtab M.! a) else badLabel lineNumber a
+        ["FJmp", a] -> if M.member a symtab then Instructions.Unary Instructions.FJmp (fromIntegral $ symtab M.! a) else badLabel lineNumber a
+
+    badLabel lineNumber labelText = error $ "Reference to undefined label " ++ (show labelText) ++ " on line " ++ (show lineNumber)
 
 main = do
   args <- getArgs
   if length args == 2 then do
     assemblerFile <- B.readFile (args !! 0)
     let chunks = map (B.dropWhile isSpace) $ B.lines assemblerFile
-    let instructions = parse $ zip [1..(length chunks)] chunks
-    B.writeFile (args !! 1) $ P.runPut $ Bytecode.save instructions
+    let ((lines, insts, symtab), instructions) = RWS.execRWS parse chunks (1, 0, M.empty)
+    let instructions' = patchLabelAddresses symtab (zip [1..length instructions] instructions)
+    B.writeFile (args !! 1) $ P.runPut $ Bytecode.save instructions'
   else
     error $ "Usage: tasm <input assembler file> <output bytecode file>"

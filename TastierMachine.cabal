@@ -22,5 +22,5 @@ executable tvm
 
 executable tasm
   main-is:             TastierAssembler/Main.hs
-  build-depends:       base, bytestring, binary, array, mtl
+  build-depends:       base, containers, bytestring, binary, array, mtl
   hs-source-dirs:      src
