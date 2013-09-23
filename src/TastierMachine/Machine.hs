@@ -34,8 +34,8 @@
   5: Unused
   4: Unused
   3: Unused
-  2: Unused
-  1: address error - this bit is set when an operation accesses an out of bounds memory address
+  2: stack address error - this bit is set when an operation accesses an out of bounds stack memory address
+  1: data address error - this bit is set when an operation accesses an out of bounds data memory address
   0: overflow bit - this bit is set when an operation overflows 16 bits and cleared at the start of the next cycle
 @
 
@@ -76,6 +76,10 @@ run = do
 
         Instructions.Dup -> do
           put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, smem ! (rtp-1))]) }
+          run
+
+        Instructions.Nop -> do
+          put $ machine { rpc = rpc + 1 }
           run
 
         Instructions.Add -> do
@@ -153,7 +157,7 @@ run = do
 
     Instructions.Unary i a ->
       case i of
-        Instructions.StoG   -> do
+        Instructions.StoG   -> do -- memory mapped control and status registers implemented here
           case a of
             0 -> put $ machine { rpc = (smem ! (rtp-1)), rtp = rtp - 1 }
             1 -> put $ machine { rpc = rpc + 1, rtp = (smem ! (rtp-1)) }
@@ -162,7 +166,7 @@ run = do
             _ -> put $ machine { rpc = rpc + 1, rtp = rtp - 1, dmem = (dmem // [(a-4, (smem ! (rtp-1)))]) }
           run
 
-        Instructions.LoadG  -> do
+        Instructions.LoadG  -> do -- memory mapped control and status registers implemented here
           case a of
             0 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, rpc)]) }
             1 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, rtp)]) }
@@ -211,7 +215,10 @@ run = do
           run
 
         Instructions.Call   -> do
-          put $ machine { rpc = b, rtp = rtp + 2, smem = (smem // [(rtp, rpc+3), (rtp+1, a)]) }
+          -- Call gets passed the lexical level delta in slot a, and the address of the procedure in slot b.
+          -- Call pushes the return address onto the stack. The lexical level delta gets pushed on the stack, so when the called procedure does Enter,
+          -- the top of stack contains the lexical level delta.
+          put $ machine { rpc = b, rtp = rtp + 2, smem = (smem // [(rtp, rpc+1), (rtp+1, a)]) }
           run
 
 --followChain follows the static link chain to find the address of the base of the stack frame i levels down
