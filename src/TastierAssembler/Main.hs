@@ -67,7 +67,7 @@ parse = do
       RWS.put (lineNumber+1, instNumber, symbolTable)
       parse
     else do
-      let mightBeLabelText = B.takeWhile isAlphaNum currentLine
+      let mightBeLabelText = B.takeWhile isAlphaNumOrDollar currentLine
       let restOfLine = B.drop (B.length mightBeLabelText) currentLine
 
       if ((B.length mightBeLabelText) > 0) then --could be a label
@@ -90,6 +90,8 @@ parse = do
         RWS.put (lineNumber+1, instNumber+1, symbolTable)
         RWS.tell $ [parseInstruction instNumber currentLine]
         parse
+  where
+    isAlphaNumOrDollar a = (a == '$' || isAlphaNum a)
 
 patchLabelAddresses symtab instructions =
   map (patchLabel symtab) instructions
