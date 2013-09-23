@@ -30,11 +30,11 @@ parseInstruction lineNumber text =
         ["Neg"]         -> Right $ Instructions.Nullary Instructions.Neg
         ["Load", a, b]  -> Right $ Instructions.Binary Instructions.Load (fromIntegral $ fst $ fromJust $ B.readInteger a) (fromIntegral $ fst $ fromJust $ B.readInteger b)
         ["Sto", a, b]   -> Right $ Instructions.Binary Instructions.Sto (fromIntegral $ fst $ fromJust $ B.readInteger a) (fromIntegral $ fst $ fromJust $ B.readInteger b)
-        ["Call", a, b]  -> Right $ Instructions.Binary Instructions.Call (fromIntegral $ fst $ fromJust $ B.readInteger a) (fromIntegral $ fst $ fromJust $ B.readInteger b)
         ["LoadG", a]    -> Right $ Instructions.Unary Instructions.LoadG (fromIntegral $ fst $ fromJust $ B.readInteger a)
         ["StoG", a]     -> Right $ Instructions.Unary Instructions.StoG (fromIntegral $ fst $ fromJust $ B.readInteger a)
         ["Const", a]    -> Right $ Instructions.Unary Instructions.Const (fromIntegral $ fst $ fromJust $ B.readInteger a)
         ["Enter", a]    -> Right $ Instructions.Unary Instructions.Enter (fromIntegral $ fst $ fromJust $ B.readInteger a)
+
         ["Jmp", a]      ->  case B.readInteger a of
                               Just i -> Right $ Instructions.Unary Instructions.Jmp (fromIntegral $ fst i)
                               _ -> Left $ ["Jmp", a]
@@ -43,12 +43,17 @@ parseInstruction lineNumber text =
                               Just i -> Right $ Instructions.Unary Instructions.FJmp (fromIntegral $ fst i)
                               _ -> Left $ ["FJmp", a]
 
+        ["Call", a, b]  ->  case B.readInteger b of
+                              Just i -> Right $ Instructions.Binary Instructions.Call (fromIntegral $ fst $ fromJust $ B.readInteger a) (fromIntegral $ fst $ fromJust $ B.readInteger b)
+                              _ -> Left $ ["Call", a, b]
+
         ["Ret"]         -> Right $ Instructions.Nullary Instructions.Ret
         ["Leave"]       -> Right $ Instructions.Nullary Instructions.Leave
         ["Read"]        -> Right $ Instructions.Nullary Instructions.Read
         ["Write"]       -> Right $ Instructions.Nullary Instructions.Write
         ["Halt"]        -> Right $ Instructions.Nullary Instructions.Halt
         ["Dup"]         -> Right $ Instructions.Nullary Instructions.Dup
+        ["Nop"]         -> Right $ Instructions.Nullary Instructions.Nop
         _               -> error $ "Unknown instruction on line " ++ show lineNumber ++ ": " ++ show text
 
 parse :: RWS.RWS [B.ByteString] [(Either [B.ByteString] Instructions.InstructionWord)] (Int, Int, M.Map B.ByteString Int) ()
@@ -94,6 +99,7 @@ patchLabelAddresses symtab instructions =
       case x of
         ["Jmp", a]  -> if M.member a symtab then Instructions.Unary Instructions.Jmp (fromIntegral $ symtab M.! a) else badLabel lineNumber a
         ["FJmp", a] -> if M.member a symtab then Instructions.Unary Instructions.FJmp (fromIntegral $ symtab M.! a) else badLabel lineNumber a
+        ["Call", a, b] -> if M.member b symtab then Instructions.Binary Instructions.Call (fromIntegral $ fst $ fromJust $ B.readInteger a) (fromIntegral $ symtab M.! b) else badLabel lineNumber b
 
     badLabel lineNumber labelText = error $ "Reference to undefined label " ++ (show labelText) ++ " on line " ++ (show lineNumber)
 
