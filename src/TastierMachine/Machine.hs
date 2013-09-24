@@ -279,12 +279,12 @@ run = do
             lexical level delta, static link, and dynamic link stored on the
             bottom of the stack.
           -}
-          let loadAddr = (followChain 0 a rbp smem) + b + 4
+          let loadAddr = (followChain 0 a rbp smem) + b + 1
           put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, (smem ! loadAddr))]) }
           run
 
         Instructions.Sto    -> do --Store updates a variable in a calling frame
-          let storeAddr = (followChain 0 a rbp smem) + b + 4
+          let storeAddr = (followChain 0 a rbp smem) + b + 1
           put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(storeAddr, (smem ! (rtp-1)))]) }
           run
 
