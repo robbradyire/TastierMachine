@@ -138,11 +138,31 @@ run = do
           run
 
         Instructions.Ret    -> do
+          {-
+            The return address is on top of stack, set the pc to that address
+          -}
           put $ machine { rpc = (smem ! (rtp-1)), rtp = rtp - 1 }
           run
 
         Instructions.Leave  -> do
-          put $ machine { rtp = rbp+1, rbp = (smem ! (rbp+3)) }
+          {-
+            When we're leaving a procedure, we have to reset rbp and rtp to
+            the values they had in the calling context. Our calling
+            convention is that we store the return address at the top of the
+            caller's stack frame, and rbp at the bottom of the callee's
+            stack frame.
+
+            ENTER stored the old rbp on top of stack, so we reset it from
+            there. The new rtp is whatever the base of the current stack
+            frame (the one we're about to leave) is. Since we're returning
+            from the procedure, we don't need to keep all the local
+            variables around, so we can just shrink the stack by setting the
+            new rtp to be the current rbp.
+
+            The RET instruction (which comes after LEAVE) will see the
+            return address on top of stack, and jump there.
+          -}
+          put $ machine { rtp = rbp, rbp = (smem ! (rtp-1)) }
           run
 
         Instructions.Read   -> do
@@ -180,14 +200,20 @@ run = do
           run
 
         Instructions.Enter  -> do
-          let lexicalLevelDelta = (smem ! (rtp-1))
-          if lexicalLevelDelta == 0 then do -- calling a procedure at the same level as the current one
-            put $ machine { rtp = rtp+a+2, rbp = rtp-2, smem = (smem // [(rtp, (smem ! (rbp+2))), (rtp+1, rbp)]) }
-            run
-          else do -- calling a procedure at a different level than the current one
-            let calleeStaticLinkFieldAddr = followChain 1 lexicalLevelDelta rbp smem
-            put $ machine { rtp = rtp+a+2, rbp = rtp-2, smem = (smem // [(rtp, calleeStaticLinkFieldAddr), (rtp+1, rbp)]) }
-            run
+          {-
+            ENTER has to save the base pointer then set the new base pointer
+            to the current top of stack so that the called procedure can
+            store local variables without overwriting other data. ENTER gets
+            passed the offset of the new top of stack as an argument (this
+            is how much stack space to pre-allocate).
+
+            ENTER sees the return address and the lexical level delta on the
+            top of the stack. However, RET expects the return address on top
+            of stack, so we have to pop the delta and push rbp for leave. We
+            can just store rbp in the delta's stack slot (rtp - 1).
+          -}
+          put $ machine { rtp = rtp+a, rbp = rtp, smem = (smem // [(rtp-1, rbp)]) }
+          run
 
         Instructions.Jmp  -> do
           put $ machine { rpc = a }
@@ -215,9 +241,13 @@ run = do
           run
 
         Instructions.Call   -> do
-          -- Call gets passed the lexical level delta in slot a, and the address of the procedure in slot b.
-          -- Call pushes the return address onto the stack. The lexical level delta gets pushed on the stack, so when the called procedure does Enter,
-          -- the top of stack contains the lexical level delta.
+          {-
+            CALL gets passed the lexical level delta in slot a, and the
+            address of the procedure in slot b. CALL pushes the return
+            address onto the stack, then the lexical level delta, so when
+            the called procedure does ENTER, the stack contains the lexical
+            level delta at (rtp - 1) and the return address at (rtp - 2).
+          -}
           put $ machine { rpc = b, rtp = rtp + 2, smem = (smem // [(rtp, rpc+1), (rtp+1, a)]) }
           run
 
