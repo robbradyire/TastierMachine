@@ -33,11 +33,30 @@
   6: Unused
   5: Unused
   4: Unused
-  3: Unused
+  3: IO error - this bit is set if a read operation failed (could not read any data)
   2: stack address error - this bit is set when an operation accesses an out of bounds stack memory address
   1: data address error - this bit is set when an operation accesses an out of bounds data memory address
   0: overflow bit - this bit is set when an operation overflows 16 bits and cleared at the start of the next cycle
 @
+
+  Our calling convention for procedures is as follows:
+
+  stack frame layout and pointer locations:                 DMA
+                                                            DMA
+        *                         *                         DMA
+  top ->*                         *                         DMA
+        * local variables         *                         DMA
+        ***************************                         DMA
+        * dynamic link (dl)       *                         DMA
+        * static link (sl)        *                         DMA
+        * lexic level delta (lld) *                         DMA
+  bp -> * return address          *                         DMA
+        ***************************                         DMA
+                                                            DMA
+  dl  - bp of calling procedure's frame for popping stack   DMA
+  sl  - bp of enclosing procedure for addressing variables  DMA
+  lld - ll difference (delta) between a called procedure    DMA
+        and its calling procudure                           DMA
 
 -}
 module TastierMachine.Machine where
@@ -46,6 +65,20 @@ import Data.Int (Int8, Int16)
 import Data.Bits (complement)
 import Data.Array ((//), (!), Array, elems)
 import Control.Monad.RWS.Lazy (RWS, put, get, ask, tell, local)
+import System.IO.Unsafe (unsafePerformIO)
+import Data.List (intersperse)
+
+debug m@(Machine rpc rtp rbp rcc imem _ _) = unsafePerformIO $ do {
+  putStrLn $
+    concat $
+      intersperse "\t| " $
+        (zipWith (++)
+          ["rpc: ", "rtp: ", "rbp: ", "rcc: "]
+          (map show [rpc,rtp, rbp, rcc]))
+        ++
+        [(show $ imem ! rpc)];
+  return m
+}
 
 data Machine = Machine { rpc :: Int16,  -- ^ register containing the address of the next instruction to execute
                          rtp :: Int16,  -- ^ register containing the address of the top of the stack
@@ -64,7 +97,8 @@ data Machine = Machine { rpc :: Int16,  -- ^ register containing the address of 
 
 run :: RWS [Int16] [Int16] Machine ()
 run = do
-  machine@(Machine rpc rtp rbp rcc imem dmem smem) <- get
+  machine'@(Machine rpc rtp rbp rcc imem dmem smem) <- get
+  let machine = debug machine'
   let instructionWord = imem ! rpc
 
   case instructionWord of
@@ -85,49 +119,49 @@ run = do
         Instructions.Add -> do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
-          let result = a + b
+          let result = b + a
           put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Sub    -> do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
-          let result = a - b
+          let result = b - a
           put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Mul    -> do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
-          let result = a * b
+          let result = b * a
           put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Div    -> do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
-          let result = a `div` b
+          let result = b `div` a
           put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Equ    -> do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
-          let result = fromIntegral $ fromEnum (a == b)
+          let result = fromIntegral $ fromEnum (b == a)
           put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Lss    -> do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
-          let result = fromIntegral $ fromEnum (a < b)
+          let result = fromIntegral $ fromEnum (b < a)
           put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Gtr    -> do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
-          let result = fromIntegral $ fromEnum (a > b)
+          let result = fromIntegral $ fromEnum (b > a)
           put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
           run
 
@@ -162,7 +196,7 @@ run = do
             The RET instruction (which comes after LEAVE) will see the
             return address on top of stack, and jump there.
           -}
-          put $ machine { rtp = rbp, rbp = (smem ! (rtp-1)) }
+          put $ machine { rpc = rpc + 1, rtp = rbp+1, rbp = (smem ! (rbp+3)) }
           run
 
         Instructions.Read   -> do
@@ -213,11 +247,11 @@ run = do
             can just store rbp in the delta's stack slot (rtp - 1).
           -}
           if (smem ! (rtp-1)) == 0 then do --calling a procedure at the same level, so we can share the stack frame
-            put $ machine { rtp = rtp+a, rbp = rtp, smem = (smem // [(rtp, rbp+1), (rtp+1, rbp)]) }
+            put $ machine { rpc = rpc + 1, rtp = rtp+a+2, rbp = rtp-2, smem = (smem // [(rtp, rbp+2), (rtp+1, rbp)]) }
             run
           else do
             let staticLink = followChain 1 (smem ! (rtp-1)) rbp smem
-            put $ machine { rtp = rtp+a, rbp = rtp, smem = (smem // [(rtp, staticLink), (rtp+1, rbp)]) }
+            put $ machine { rpc = rpc + 1, rtp = rtp+a+2, rbp = rtp-2, smem = (smem // [(rtp, staticLink), (rtp+1, rbp)]) }
             run
 
 
