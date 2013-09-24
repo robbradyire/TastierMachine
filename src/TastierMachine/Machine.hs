@@ -212,8 +212,14 @@ run = do
             of stack, so we have to pop the delta and push rbp for leave. We
             can just store rbp in the delta's stack slot (rtp - 1).
           -}
-          put $ machine { rtp = rtp+a, rbp = rtp, smem = (smem // [(rtp-1, rbp)]) }
-          run
+          if (smem ! (rtp-1)) == 0 then do --calling a procedure at the same level, so we can share the stack frame
+            put $ machine { rtp = rtp+a, rbp = rtp, smem = (smem // [(rtp, rbp+1), (rtp+1, rbp)]) }
+            run
+          else do
+            let staticLink = followChain 1 (smem ! (rtp-1)) rbp smem
+            put $ machine { rtp = rtp+a, rbp = rtp, smem = (smem // [(rtp, staticLink), (rtp+1, rbp)]) }
+            run
+
 
         Instructions.Jmp  -> do
           put $ machine { rpc = a }
@@ -230,12 +236,20 @@ run = do
 
     Instructions.Binary i a b ->
       case i of
-        Instructions.Load   -> do --Load gets a variable from a calling frame onto the top of the stack
+        Instructions.Load   -> do
+          {-
+            Load gets a variable from a calling frame onto the top of the
+            stack. We follow the chain of links to find the stack frame the
+            variable is in, add b (the address of the variable in that
+            frame) and add two, because each frame has the caller's rbp,
+            lexical level delta, static link, and dynamic link stored on the
+            bottom of the stack.
+          -}
           let loadAddr = (followChain 0 a rbp smem) + b + 4
           put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, (smem ! loadAddr))]) }
           run
 
-        Instructions.Sto    -> do
+        Instructions.Sto    -> do --Store updates a variable in a calling frame
           let storeAddr = (followChain 0 a rbp smem) + b + 4
           put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(storeAddr, (smem ! (rtp-1)))]) }
           run
@@ -256,5 +270,5 @@ run = do
 followChain :: Int16 -> Int16 -> Int16 -> (Array Int16 Int16) -> Int16
 followChain limit n rbp smem =
   if n > limit then
-    followChain limit (n-1) (smem ! rbp) smem
+    followChain limit (n-1) (smem ! (rbp+1)) smem
   else rbp
