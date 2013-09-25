@@ -16,6 +16,7 @@ import qualified Data.Map as M
 import qualified Control.Monad.RWS.Lazy as RWS
 
 commentOpenString = ";;"
+eformatMarker = "."
 
 parseInstruction :: Int -> B.ByteString -> (Either [B.ByteString] Instructions.InstructionWord)
 parseInstruction lineNumber text =
@@ -63,33 +64,29 @@ parse = do
   if lineNumber > length sourceCode then return ()
   else do
     let currentLine = sourceCode !! (lineNumber-1)
-    if B.isPrefixOf commentOpenString currentLine then do --the line is a comment
-      RWS.put (lineNumber+1, instNumber, symbolTable)
-      parse
-    else do
-      let mightBeLabelText = B.takeWhile isAlphaNumOrDollar currentLine
-      let restOfLine = B.drop (B.length mightBeLabelText) currentLine
+    let mightBeLabelText = B.takeWhile isAlphaNumOrDollar currentLine
+    let restOfLine = B.drop (B.length mightBeLabelText) currentLine
 
-      if ((B.length mightBeLabelText) > 0) then --could be a label
-        if B.null restOfLine then do --can only be an instruction
-          RWS.put (lineNumber+1, instNumber+1, symbolTable)
-          RWS.tell $ [parseInstruction instNumber currentLine]
-          parse
-        else if (B.head restOfLine) == ':' then --definitely a label
-          if M.member mightBeLabelText symbolTable then
-            error $ "Multiple definitions of the label " ++ (show mightBeLabelText) ++ " (line " ++ (show $ symbolTable M.! mightBeLabelText) ++ ", line " ++ (show lineNumber) ++ ")"
-          else do
-            RWS.put (lineNumber+1, instNumber+1, M.insert mightBeLabelText instNumber symbolTable)
-            RWS.tell $ [parseInstruction instNumber $ B.tail restOfLine]
-            parse
+    if ((B.length mightBeLabelText) > 0) then --could be a label
+      if B.null restOfLine then do --can only be an instruction
+        RWS.put (lineNumber+1, instNumber+1, symbolTable)
+        RWS.tell $ [parseInstruction instNumber currentLine]
+        parse
+      else if (B.head restOfLine) == ':' then --definitely a label
+        if M.member mightBeLabelText symbolTable then
+          error $ "Multiple definitions of the label " ++ (show mightBeLabelText) ++ " (line " ++ (show $ symbolTable M.! mightBeLabelText) ++ ", line " ++ (show lineNumber) ++ ")"
         else do
-          RWS.put (lineNumber+1, instNumber+1, symbolTable)
-          RWS.tell $ [parseInstruction instNumber currentLine]
+          RWS.put (lineNumber+1, instNumber+1, M.insert mightBeLabelText instNumber symbolTable)
+          RWS.tell $ [parseInstruction instNumber $ B.tail restOfLine]
           parse
       else do
         RWS.put (lineNumber+1, instNumber+1, symbolTable)
         RWS.tell $ [parseInstruction instNumber currentLine]
         parse
+    else do
+      RWS.put (lineNumber+1, instNumber+1, symbolTable)
+      RWS.tell $ [parseInstruction instNumber currentLine]
+      parse
   where
     isAlphaNumOrDollar a = (a == '$' || isAlphaNum a)
 
@@ -105,11 +102,14 @@ patchLabelAddresses symtab instructions =
 
     badLabel lineNumber labelText = error $ "Reference to undefined label " ++ (show labelText) ++ " on line " ++ (show lineNumber)
 
+ignoreLinePredicate l = (not $ B.null l) && (not $ B.isPrefixOf commentOpenString l) && (not $ B.isPrefixOf eformatMarker l)
+
 main = do
   args <- getArgs
   if length args == 2 then do
-    assemblerFile <- B.readFile (args !! 0)
-    let chunks = map (B.dropWhile isSpace) $ B.lines assemblerFile
+    assemblerFile' <- B.readFile (args !! 0)
+    let assemblerFile = "Call 0 Main\nJmp $END\n" `B.append` assemblerFile' `B.append` "\n$END: Halt\n"
+    let chunks = filter ignoreLinePredicate $ map (B.dropWhile isSpace) $ B.lines assemblerFile
     let ((lines, insts, symtab), instructions) = RWS.execRWS parse chunks (1, 0, M.empty)
     let instructions' = patchLabelAddresses symtab (zip [1..length instructions] instructions)
     B.writeFile (args !! 1) $ P.runPut $ Bytecode.save instructions'
