@@ -18,6 +18,11 @@ import qualified Control.Monad.RWS.Lazy as RWS
 commentOpenString = ";;"
 eformatMarker = "."
 
+myReadInteger a =
+  case B.readInteger a of
+    Just x -> x
+    Nothing -> error $ "Unresolved external variable: " ++ (show a)
+
 parseInstruction :: Int -> B.ByteString -> (Either [B.ByteString] Instructions.InstructionWord)
 parseInstruction lineNumber text =
       case B.words text of
@@ -29,12 +34,12 @@ parseInstruction lineNumber text =
         ["Lss"]         -> Right $ Instructions.Nullary Instructions.Lss
         ["Gtr"]         -> Right $ Instructions.Nullary Instructions.Gtr
         ["Neg"]         -> Right $ Instructions.Nullary Instructions.Neg
-        ["Load", a, b]  -> Right $ Instructions.Binary Instructions.Load (fromIntegral $ fst $ fromJust $ B.readInteger a) (fromIntegral $ fst $ fromJust $ B.readInteger b)
-        ["Sto", a, b]   -> Right $ Instructions.Binary Instructions.Sto (fromIntegral $ fst $ fromJust $ B.readInteger a) (fromIntegral $ fst $ fromJust $ B.readInteger b)
-        ["LoadG", a]    -> Right $ Instructions.Unary Instructions.LoadG (fromIntegral $ fst $ fromJust $ B.readInteger a)
-        ["StoG", a]     -> Right $ Instructions.Unary Instructions.StoG (fromIntegral $ fst $ fromJust $ B.readInteger a)
-        ["Const", a]    -> Right $ Instructions.Unary Instructions.Const (fromIntegral $ fst $ fromJust $ B.readInteger a)
-        ["Enter", a]    -> Right $ Instructions.Unary Instructions.Enter (fromIntegral $ fst $ fromJust $ B.readInteger a)
+        ["Load", a, b]  -> Right $ Instructions.Binary Instructions.Load (fromIntegral $ fst $ myReadInteger a) (fromIntegral $ fst $ myReadInteger b)
+        ["Sto", a, b]   -> Right $ Instructions.Binary Instructions.Sto (fromIntegral $ fst $ myReadInteger a) (fromIntegral $ fst $ myReadInteger b)
+        ["LoadG", a]    -> Right $ Instructions.Unary Instructions.LoadG (fromIntegral $ fst $ myReadInteger a)
+        ["StoG", a]     -> Right $ Instructions.Unary Instructions.StoG (fromIntegral $ fst $ myReadInteger a)
+        ["Const", a]    -> Right $ Instructions.Unary Instructions.Const (fromIntegral $ fst $ myReadInteger a)
+        ["Enter", a]    -> Right $ Instructions.Unary Instructions.Enter (fromIntegral $ fst $ myReadInteger a)
 
         ["Jmp", a]      ->  case B.readInteger a of
                               Just i -> Right $ Instructions.Unary Instructions.Jmp (fromIntegral $ fst i)
