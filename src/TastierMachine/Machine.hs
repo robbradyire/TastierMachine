@@ -12,33 +12,8 @@
   bits in memory, going from most significant (bit 15) down to least
   significant (bit 0).
 
-  The machine has four state registers which can be loaded onto the
-  stack for manipulation, and stored back again. One of the registers,
-  rcc has a special purpose: it's the condition code register where
-  exceptions are notified to the program. For example, when an arithmetic
-  operation causes an overflow, a particular bit in rcc will be set.
-
-  The bit layout of rcc is as follows:
-
-@
-  15: Unused
-  14: Unused
-  13: Unused
-  12: Unused
-  11: Unused
-  10: Unused
-  9: Unused
-  8: Unused
-  7: Unused
-  6: Unused
-  5: Unused
-  4: Unused
-  3: IO error - this bit is set if a read operation failed (could not read any data)
-  2: stack address error - this bit is set when an operation accesses an out of bounds stack memory address
-  1: data address error - this bit is set when an operation accesses an out of bounds data memory address
-  0: overflow bit - this bit is set when an operation overflows 16 bits and cleared at the start of the next cycle
-@
-
+  The machine has three state registers which can be loaded onto the
+  stack for manipulation, and stored back again.
   Our calling convention for procedures is as follows:
 
   stack frame layout and pointer locations:                 DMA
@@ -53,8 +28,8 @@
   bp -> * return address          *                         DMA
         ***************************                         DMA
                                                             DMA
-  dl  - bp of calling procedure's frame for popping stack   DMA
-  sl  - bp of enclosing procedure for addressing variables  DMA
+  dl  - rbp of calling procedure's frame for popping stack   DMA
+  sl  - rbp of enclosing procedure for addressing variables  DMA
   lld - ll difference (delta) between a called procedure    DMA
         and its calling procudure                           DMA
 
@@ -62,28 +37,33 @@
 module TastierMachine.Machine where
 import qualified TastierMachine.Instructions as Instructions
 import Data.Int (Int8, Int16)
+import Data.Char (intToDigit)
+import Numeric (showIntAtBase)
 import Data.Bits (complement)
 import Data.Array ((//), (!), Array, elems)
 import Control.Monad.RWS.Lazy (RWS, put, get, ask, tell, local)
 import System.IO.Unsafe (unsafePerformIO)
+import System.IO (hFlush, stdout)
 import Data.List (intersperse)
 
-debug m@(Machine rpc rtp rbp rcc imem _ _) = unsafePerformIO $ do {
+debug' m@(Machine rpc rtp rbp imem _ _) = do {
   putStrLn $
     concat $
       intersperse "\t| " $
         (zipWith (++)
-          ["rpc: ", "rtp: ", "rbp: ", "rcc: "]
-          (map show [rpc,rtp, rbp, rcc]))
+          ["rpc: ", "rtp: ", "rbp: "]
+          [show rpc, show rtp, show rbp])
         ++
         [(show $ imem ! rpc)];
+  hFlush stdout;
   return m
 }
+
+debug = unsafePerformIO . debug'
 
 data Machine = Machine { rpc :: Int16,  -- ^ register containing the address of the next instruction to execute
                          rtp :: Int16,  -- ^ register containing the address of the top of the stack
                          rbp :: Int16,  -- ^ register containing the address of the base of the stack
-                         rcc :: Int16,  -- ^ register containing condition codes after operations
 
                          imem :: (Array Int16 Instructions.InstructionWord), -- ^ instruction memory
                          dmem :: (Array Int16 Int16), -- ^ data memory
@@ -97,7 +77,7 @@ data Machine = Machine { rpc :: Int16,  -- ^ register containing the address of 
 
 run :: RWS [Int16] [Int16] Machine ()
 run = do
-  machine'@(Machine rpc rtp rbp rcc imem dmem smem) <- get
+  machine'@(Machine rpc rtp rbp imem dmem smem) <- get
   let machine = debug machine'
   let instructionWord = imem ! rpc
 
@@ -105,7 +85,6 @@ run = do
     Instructions.Nullary i ->
       case i of
         Instructions.Halt -> do
-          put $ machine { rpc = rpc + 1 }
           return ()
 
         Instructions.Dup -> do
@@ -216,8 +195,7 @@ run = do
             0 -> put $ machine { rpc = (smem ! (rtp-1)), rtp = rtp - 1 }
             1 -> put $ machine { rpc = rpc + 1, rtp = (smem ! (rtp-1)) }
             2 -> put $ machine { rpc = rpc + 1, rtp = rtp - 1, rbp = (smem ! (rtp-1)) }
-            3 -> put $ machine { rpc = rpc + 1, rtp = rtp - 1, rcc = (smem ! (rtp-1)) }
-            _ -> put $ machine { rpc = rpc + 1, rtp = rtp - 1, dmem = (dmem // [(a-4, (smem ! (rtp-1)))]) }
+            _ -> put $ machine { rpc = rpc + 1, rtp = rtp - 1, dmem = (dmem // [(a-3, (smem ! (rtp-1)))]) }
           run
 
         Instructions.LoadG  -> do -- memory mapped control and status registers implemented here
@@ -225,8 +203,7 @@ run = do
             0 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, rpc)]) }
             1 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, rtp)]) }
             2 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, rbp)]) }
-            3 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, rcc)]) }
-            _ -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, (dmem ! (a-4)))]) }
+            _ -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, (dmem ! (a-3)))]) }
           run
 
         Instructions.Const  -> do

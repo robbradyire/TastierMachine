@@ -12,7 +12,7 @@ import Control.Monad.RWS.Lazy (execRWS)
 import System.Environment (getArgs)
 import Data.Maybe (fromJust)
 
-machine = (Machine.Machine 0 0 0 0
+machine = (Machine.Machine 0 0 0
           (listArray (0,0) [Instructions.Nullary Instructions.Halt])
           (listArray (0,4091) (take 4092 $ cycle [0]))
           (listArray (0,4095) (take 4096 $ cycle [0])))
@@ -27,6 +27,7 @@ main = do
     let program = (listArray (0, fromIntegral $ (length instructions)-1) instructions)
     let machine' = machine { Machine.imem = program }
     let (machine'', output) = execRWS Machine.run inputData machine'
+    machine''' <- Machine.debug' machine''
     putStrLn $ show output
   else
     error $ "Usage: tvm <input bytecode file> <input data file>"
