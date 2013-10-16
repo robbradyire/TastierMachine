@@ -28,8 +28,8 @@
   bp -> * return address          *                         DMA
         ***************************                         DMA
                                                             DMA
-  dl  - rbp of calling procedure's frame for popping stack   DMA
-  sl  - rbp of enclosing procedure for addressing variables  DMA
+  dl  - rbp of calling procedure's frame for popping stack  DMA
+  sl  - rbp of enclosing procedure for addressing variables DMA
   lld - ll difference (delta) between a called procedure    DMA
         and its calling procudure                           DMA
 
@@ -61,18 +61,20 @@ debug' m@(Machine rpc rtp rbp imem _ _) = do {
 
 debug = unsafePerformIO . debug'
 
-data Machine = Machine { rpc :: Int16,  -- ^ register containing the address of the next instruction to execute
-                         rtp :: Int16,  -- ^ register containing the address of the top of the stack
-                         rbp :: Int16,  -- ^ register containing the address of the base of the stack
+data Machine = Machine { rpc :: Int16,  -- ^ next instruction to execute
+                         rtp :: Int16,  -- ^ top of the stack
+                         rbp :: Int16,  -- ^ base of the stack
 
-                         imem :: (Array Int16 Instructions.InstructionWord), -- ^ instruction memory
+                         imem :: (Array Int16 Instructions.InstructionWord),
+                                                      -- ^ instruction memory
                          dmem :: (Array Int16 Int16), -- ^ data memory
                          smem :: (Array Int16 Int16)  -- ^ stack memory
                        }
                        deriving (Show)
 
-{- |
-  This function implements the internal state machine executing the instructions.
+{-
+  This function implements the internal state machine executing the
+  instructions.
 -}
 
 run :: RWS [Int16] [Int16] Machine ()
@@ -88,7 +90,8 @@ run = do
           return ()
 
         Instructions.Dup -> do
-          put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, smem ! (rtp-1))]) }
+          put $ machine { rpc = rpc + 1, rtp = rtp + 1,
+                          smem = (smem // [(rtp, smem ! (rtp-1))]) }
           run
 
         Instructions.Nop -> do
@@ -99,49 +102,56 @@ run = do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = b + a
-          put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
+          put $ machine { rpc = rpc + 1, rtp = rtp - 1,
+                          smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Sub    -> do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = b - a
-          put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
+          put $ machine { rpc = rpc + 1, rtp = rtp - 1,
+                          smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Mul    -> do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = b * a
-          put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
+          put $ machine { rpc = rpc + 1, rtp = rtp - 1,
+                          smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Div    -> do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = b `div` a
-          put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
+          put $ machine { rpc = rpc + 1, rtp = rtp - 1,
+                          smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Equ    -> do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = fromIntegral $ fromEnum (b == a)
-          put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
+          put $ machine { rpc = rpc + 1, rtp = rtp - 1,
+                          smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Lss    -> do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = fromIntegral $ fromEnum (b < a)
-          put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
+          put $ machine { rpc = rpc + 1, rtp = rtp - 1,
+                          smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Gtr    -> do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = fromIntegral $ fromEnum (b > a)
-          put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(rtp-2, result)]) }
+          put $ machine { rpc = rpc + 1, rtp = rtp - 1,
+                          smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Neg    -> do
@@ -161,26 +171,27 @@ run = do
           {-
             When we're leaving a procedure, we have to reset rbp and rtp to
             the values they had in the calling context. Our calling
-            convention is that we store the return address at the top of the
-            caller's stack frame, and rbp at the bottom of the callee's
-            stack frame.
+            convention is that we store the return address at the bottom of
+            the stack frame (at rbp), and the old base pointer in the dynamic
+            link field (at rbp+3).
 
-            ENTER stored the old rbp on top of stack, so we reset it from
-            there. The new rtp is whatever the base of the current stack
-            frame (the one we're about to leave) is. Since we're returning
-            from the procedure, we don't need to keep all the local
-            variables around, so we can just shrink the stack by setting the
-            new rtp to be the current rbp.
-
-            The RET instruction (which comes after LEAVE) will see the
-            return address on top of stack, and jump there.
+            We reset rbp to whatever the value of the dynamic link field is.
+            Since we created the stack frame for this procedure, the one
+            from which we're now returning, at the *top* of the stack when
+            it was called, we know that when we called the procedure, rtp
+            was equal to whatever value rbp has *at present*. However, we
+            want to leave the return address on the top of the stack for RET
+            to jump to. We can simply set rtp to one past the current rbp
+            (effectively popping off the local variables of this procedure,
+            the dynamic link, static link, and lexical level delta fields).
           -}
           put $ machine { rpc = rpc + 1, rtp = rbp+1, rbp = (smem ! (rbp+3)) }
           run
 
         Instructions.Read   -> do
           (i:rest) <- ask
-          put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, i)]) }
+          put $ machine { rpc = rpc + 1, rtp = rtp + 1,
+                          smem = (smem // [(rtp, i)]) }
           local tail run
 
         Instructions.Write  -> do
@@ -190,45 +201,60 @@ run = do
 
     Instructions.Unary i a ->
       case i of
-        Instructions.StoG   -> do -- memory mapped control and status registers implemented here
+        Instructions.StoG   -> do
+          -- memory mapped control and status registers implemented here
           case a of
             0 -> put $ machine { rpc = (smem ! (rtp-1)), rtp = rtp - 1 }
             1 -> put $ machine { rpc = rpc + 1, rtp = (smem ! (rtp-1)) }
-            2 -> put $ machine { rpc = rpc + 1, rtp = rtp - 1, rbp = (smem ! (rtp-1)) }
-            _ -> put $ machine { rpc = rpc + 1, rtp = rtp - 1, dmem = (dmem // [(a-3, (smem ! (rtp-1)))]) }
+            2 -> put $ machine { rpc = rpc + 1, rtp = rtp - 1,
+                                 rbp = (smem ! (rtp-1)) }
+            _ -> put $ machine { rpc = rpc + 1, rtp = rtp - 1,
+                                 dmem = (dmem // [(a-3, (smem ! (rtp-1)))]) }
           run
 
-        Instructions.LoadG  -> do -- memory mapped control and status registers implemented here
+        Instructions.LoadG  -> do
+          -- memory mapped control and status registers implemented here
           case a of
-            0 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, rpc)]) }
-            1 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, rtp)]) }
-            2 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, rbp)]) }
-            _ -> put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, (dmem ! (a-3)))]) }
+            0 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1,
+                                 smem = (smem // [(rtp, rpc)]) }
+            1 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1,
+                                 smem = (smem // [(rtp, rtp)]) }
+            2 -> put $ machine { rpc = rpc + 1, rtp = rtp + 1,
+                                 smem = (smem // [(rtp, rbp)]) }
+            _ -> put $ machine { rpc = rpc + 1, rtp = rtp + 1,
+                                 smem = (smem // [(rtp, (dmem ! (a-3)))]) }
           run
 
         Instructions.Const  -> do
-          put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, a)]) }
+          put $ machine { rpc = rpc + 1, rtp = rtp + 1,
+                          smem = (smem // [(rtp, a)]) }
           run
 
         Instructions.Enter  -> do
           {-
-            ENTER has to save the base pointer then set the new base pointer
-            to the current top of stack so that the called procedure can
-            store local variables without overwriting other data. ENTER gets
-            passed the offset of the new top of stack as an argument (this
-            is how much stack space to pre-allocate).
+            ENTER has to set up both the static and dynamic link fields of
+            the stack frame which is being entered. The dynamic link (the
+            base pointer of the stack frame from which this procedure was
+            called) needs to go on the top of stack, as specified by our
+            calling convention.
 
-            ENTER sees the return address and the lexical level delta on the
-            top of the stack. However, RET expects the return address on top
-            of stack, so we have to pop the delta and push rbp for leave. We
-            can just store rbp in the delta's stack slot (rtp - 1).
+            The static link (the base pointer of the stack frame where this
+            procedure was *defined*) should be just under top of stack. If
+            we are calling a procedure which is defined in the same scope,
+            then the static link is just a copy of whatever the current
+            static link is. However, if that isn't the case, then we need to
+            call followChain to find out what the base pointer was in the
+            stack frame where the procedure we're entering was defined.
           -}
-          if (smem ! (rtp-1)) == 0 then do --calling a procedure at the same level, so we can share the stack frame
-            put $ machine { rpc = rpc + 1, rtp = rtp+a+2, rbp = rtp-2, smem = (smem // [(rtp, rbp+2), (rtp+1, rbp)]) }
+          if (smem ! (rtp-1)) == 0 then do
+            --calling a procedure at the same level, so we share the stack frame
+            put $ machine { rpc = rpc + 1, rtp = rtp+a+2, rbp = rtp-2,
+                            smem = (smem // [(rtp, rbp+2), (rtp+1, rbp)]) }
             run
           else do
             let staticLink = followChain 1 (smem ! (rtp-1)) rbp smem
-            put $ machine { rpc = rpc + 1, rtp = rtp+a+2, rbp = rtp-2, smem = (smem // [(rtp, staticLink), (rtp+1, rbp)]) }
+            put $ machine { rpc = rpc + 1, rtp = rtp+a+2, rbp = rtp-2,
+                            smem = (smem // [(rtp, staticLink), (rtp+1, rbp)]) }
             run
 
 
@@ -252,17 +278,19 @@ run = do
             Load gets a variable from a calling frame onto the top of the
             stack. We follow the chain of links to find the stack frame the
             variable is in, add b (the address of the variable in that
-            frame) and add two, because each frame has the caller's rbp,
-            lexical level delta, static link, and dynamic link stored on the
-            bottom of the stack.
+            frame) and add one, because each frame has the dynamic link stored
+            just before the start of the real stack variables, after the static
+            link, whose address we get from followChain.
           -}
           let loadAddr = (followChain 0 a rbp smem) + b + 1
-          put $ machine { rpc = rpc + 1, rtp = rtp + 1, smem = (smem // [(rtp, (smem ! loadAddr))]) }
+          put $ machine { rpc = rpc + 1, rtp = rtp + 1,
+                          smem = (smem // [(rtp, (smem ! loadAddr))]) }
           run
 
         Instructions.Sto    -> do --Store updates a variable in a calling frame
           let storeAddr = (followChain 0 a rbp smem) + b + 1
-          put $ machine { rpc = rpc + 1, rtp = rtp - 1, smem = (smem // [(storeAddr, (smem ! (rtp-1)))]) }
+          put $ machine { rpc = rpc + 1, rtp = rtp - 1,
+                          smem = (smem // [(storeAddr, (smem ! (rtp-1)))]) }
           run
 
         Instructions.Call   -> do
@@ -273,10 +301,18 @@ run = do
             the called procedure does ENTER, the stack contains the lexical
             level delta at (rtp - 1) and the return address at (rtp - 2).
           -}
-          put $ machine { rpc = b, rtp = rtp + 2, smem = (smem // [(rtp, rpc+1), (rtp+1, a)]) }
+          put $ machine { rpc = b, rtp = rtp + 2,
+                          smem = (smem // [(rtp, rpc+1), (rtp+1, a)]) }
           run
 
---followChain follows the static link chain to find the address of the base of the stack frame i levels down
+{-
+  followChain follows the static link chain to find the absolute address in
+  stack memory of the base of the stack frame (n-limit) levels down the call
+  stack. Each time we unwind one call, we recurse with rbp set to the base
+  pointer of the stack frame which we just unwound. When we've unwound the
+  correct number of stack frames, as indicated by the argument *limit*, we
+  return the base pointer of the stack frame we've unwound our way into.
+-}
 
 followChain :: Int16 -> Int16 -> Int16 -> (Array Int16 Int16) -> Int16
 followChain limit n rbp smem =

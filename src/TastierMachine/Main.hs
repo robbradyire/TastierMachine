@@ -22,12 +22,16 @@ main = do
   if length args == 2 then do
     bytecodeFile <- B.readFile (args !! 0)
     dataFile <- B.readFile (args !! 1)
-    let instructions = G.runGet Bytecode.load bytecodeFile
-    let inputData = map (fromIntegral . fst . fromJust . B.readInteger . head . B.words) $ filter (not . B.null) $ B.lines dataFile
-    let program = (listArray (0, fromIntegral $ (length instructions)-1) instructions)
+    let insns = G.runGet Bytecode.load bytecodeFile
+    let inputLines = filter (not . B.null) $ B.lines dataFile
+    let inputData = map getFirstIntegerFromString inputLines
+    let program = (listArray (0, fromIntegral $ (length insns)-1) insns)
     let machine' = machine { Machine.imem = program }
     let (machine'', output) = execRWS Machine.run inputData machine'
     machine''' <- Machine.debug' machine''
     putStrLn $ show output
   else
     error $ "Usage: tvm <input bytecode file> <input data file>"
+  where
+    getFirstIntegerFromString =
+      (fromIntegral . fst . fromJust . B.readInteger . head . B.words)

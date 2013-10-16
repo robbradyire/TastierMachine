@@ -21,13 +21,16 @@ load = do
       1 -> do
         arg <- G.getWord16be
         rest <- load
-        return ((Instructions.Unary inst (toEnum $ fromIntegral $ fromEnum $ arg)) : rest)
+        return ((Instructions.Unary inst
+                (toEnum $ fromIntegral $ fromEnum $ arg)) : rest)
 
       2 -> do
         arg0 <- G.getWord16be
         arg1 <- G.getWord16be
         rest <- load
-        return ((Instructions.Binary inst (toEnum $ fromIntegral $ fromEnum $ arg0) (toEnum $ fromIntegral $ fromEnum $ arg1)) : rest)
+        return ((Instructions.Binary inst
+                (toEnum $ fromIntegral $ fromEnum $ arg0)
+                (toEnum $ fromIntegral $ fromEnum $ arg1)) : rest)
 
 save :: [Instructions.InstructionWord] -> P.Put
 save [] = return ()
