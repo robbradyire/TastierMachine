@@ -249,21 +249,10 @@ run = do
             we're entering was defined.
           -}
           let lexicalLevelDelta = (smem ! (rtp-1))
-          if lexicalLevelDelta == 0 then do
-            {-
-              check the lexical level delta - if it's zero, then we're
-              calling a procedure at the same level, so we copy the old
-              static link.
-            -}
-            let staticLink = (smem ! (rbp+2))
-            put $ machine { rpc = rpc + 1, rtp = rtp+a+2, rbp = rtp-2,
-                            smem = (smem // [(rtp, staticLink), (rtp+1, rbp)]) }
-            run
-          else do
-            let staticLink = followChain 0 lexicalLevelDelta rbp smem
-            put $ machine { rpc = rpc + 1, rtp = rtp+a+2, rbp = rtp-2,
-                            smem = (smem // [(rtp, staticLink), (rtp+1, rbp)]) }
-            run
+          let staticLink = (followChain 0 lexicalLevelDelta rbp smem)
+          put $ machine { rpc = rpc + 1, rtp = rtp+a+2, rbp = rtp-2,
+                          smem = (smem // [(rtp, staticLink), (rtp+1, rbp)]) }
+          run
 
         Instructions.Jmp  -> do
           put $ machine { rpc = a }
@@ -290,13 +279,13 @@ run = do
             variables, but it's the static link whose address we get from
             followChain.
           -}
-          let loadAddr = (followChain 0 a rbp smem) + b + 2
+          let loadAddr = (followChain 0 a rbp smem) + 4 + b
           put $ machine { rpc = rpc + 1, rtp = rtp + 1,
                           smem = (smem // [(rtp, (smem ! loadAddr))]) }
           run
 
         Instructions.Sto    -> do --Store updates a variable in a calling frame
-          let storeAddr = (followChain 0 a rbp smem) + b + 2
+          let storeAddr = (followChain 0 a rbp smem) + 4 + b
           put $ machine { rpc = rpc + 1, rtp = rtp - 1,
                           smem = (smem // [(storeAddr, (smem ! (rtp-1)))]) }
           run
@@ -310,7 +299,7 @@ run = do
             level delta at (rtp - 1) and the return address at (rtp - 2).
           -}
           put $ machine { rpc = b, rtp = rtp + 2,
-                          smem = (smem // [(rtp, rpc+1), (rtp+1, a)]) }
+                          smem = (smem // [(rtp, (rpc+1)), (rtp+1, a)]) }
           run
 
 {-
