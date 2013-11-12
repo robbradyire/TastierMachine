@@ -77,7 +77,7 @@ data Machine = Machine { rpc :: Int16,  -- ^ next instruction to execute
   instructions.
 -}
 
-run :: RWS [Int16] [Int16] Machine ()
+run :: RWS [Int16] [String] Machine ()
 run = do
   machine'@(Machine rpc rtp rbp imem dmem smem) <- get
   let machine = debug machine'
@@ -174,7 +174,7 @@ run = do
           local tail run
 
         Instructions.Write  -> do
-          tell $ [smem ! (rtp-1)]
+          tell $ [show $ smem ! (rtp-1)]
           put $ machine { rpc = rpc + 1, rtp = rtp - 1 }
           run
 
