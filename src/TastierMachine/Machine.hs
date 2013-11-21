@@ -168,10 +168,13 @@ run = do
           run
 
         Instructions.Read   -> do
-          (i:rest) <- ask
-          put $ machine { rpc = rpc + 1, rtp = rtp + 1,
-                          smem = (smem // [(rtp, i)]) }
-          local tail run
+          value <- ask
+	  case value of
+            (i:rest) -> do 
+              put $ machine { rpc = rpc + 1, rtp = rtp + 1,
+                              smem = (smem // [(rtp, i)]) }
+              local tail run
+            [] -> error $ "Read instruction issued but no data left to read"
 
         Instructions.Write  -> do
           tell $ [show $ smem ! (rtp-1)]
