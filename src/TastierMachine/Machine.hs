@@ -80,7 +80,7 @@ data Machine = Machine { rpc :: Int16,  -- ^ next instruction to execute
 run :: RWS [Int16] [String] Machine ()
 run = do
   machine'@(Machine rpc rtp rbp imem dmem smem) <- get
-  let machine = debug machine'
+  let machine = machine'
   let instructionWord = imem ! rpc
 
   case instructionWord of
@@ -170,7 +170,7 @@ run = do
         Instructions.Read   -> do
           value <- ask
 	  case value of
-            (i:rest) -> do 
+            (i:rest) -> do
               put $ machine { rpc = rpc + 1, rtp = rtp + 1,
                               smem = (smem // [(rtp, i)]) }
               local tail run

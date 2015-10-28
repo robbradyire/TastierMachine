@@ -28,7 +28,7 @@ main = do
     let program = (listArray (0, fromIntegral $ (length insns)-1) insns)
     let machine' = machine { Machine.imem = program }
     let (machine'', output) = execRWS Machine.run inputData machine'
-    machine''' <- Machine.debug' machine''
+    --machine''' <- Machine.debug' machine''
     putStrLn $ show output
   else
     error $ "Usage: tvm <input bytecode file> <input data file>"
