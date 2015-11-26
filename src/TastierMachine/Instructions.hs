@@ -7,6 +7,9 @@ data Instruction = Add
                  | Mul
                  | Div
                  | Equ
+                 | Neq
+                 | Leq
+                 | Geq
                  | Lss
                  | Gtr
                  | Neg
