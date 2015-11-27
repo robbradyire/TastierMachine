@@ -138,28 +138,12 @@ run = do
                           smem = (smem // [(rtp-2, result)]) }
           run
 
-        Instructions.Neq    -> do
+        Instructions.Neq  -> do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = fromIntegral $ fromEnum (b /= a)
           put $ machine { rpc = rpc + 1, rtp = rtp - 1,
-                          smem = (smem // [(rtp-2, result)])}
-          run
-
-        Instructions.Leq    -> do
-          let a = smem ! (rtp-1)
-          let b = smem ! (rtp-2)
-          let result = fromIntegral $ fromEnum (b <= a)
-          put $ machine { rpc = rpc + 1, rtp = rtp - 1,
-                          smem = (smem // [(rtp-2, result)])}
-          run
-
-        Instructions.Geq    -> do
-          let a = smem ! (rtp-1)
-          let b = smem ! (rtp-2)
-          let result = fromIntegral $ fromEnum (b >= a)
-          put $ machine { rpc = rpc + 1, rtp = rtp - 1,
-                          smem = (smem // [(rtp-2, result)])}
+                          smem = (smem // [(rtp-2, result)]) }
           run
 
         Instructions.Lss    -> do
@@ -174,6 +158,22 @@ run = do
           let a = smem ! (rtp-1)
           let b = smem ! (rtp-2)
           let result = fromIntegral $ fromEnum (b > a)
+          put $ machine { rpc = rpc + 1, rtp = rtp - 1,
+                          smem = (smem // [(rtp-2, result)]) }
+          run
+
+        Instructions.Leq   -> do
+          let a = smem ! (rtp-1)
+          let b = smem ! (rtp-2)
+          let result = fromIntegral $ fromEnum (b <= a)
+          put $ machine { rpc = rpc + 1, rtp = rtp - 1,
+                          smem = (smem // [(rtp-2, result)]) }
+          run
+
+        Instructions.Geq   -> do
+          let a = smem ! (rtp-1)
+          let b = smem ! (rtp-2)
+          let result = fromIntegral $ fromEnum (b >= a)
           put $ machine { rpc = rpc + 1, rtp = rtp - 1,
                           smem = (smem // [(rtp-2, result)]) }
           run

@@ -8,10 +8,10 @@ data Instruction = Add
                  | Div
                  | Equ
                  | Neq
-                 | Leq
-                 | Geq
                  | Lss
                  | Gtr
+                 | Geq
+                 | Leq
                  | Neg
                  | Load
                  | Sto

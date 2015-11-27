@@ -34,7 +34,8 @@ main = do
   if length args == 2 then do
     assemblerFile' <- B.readFile (args !! 0)
 
-    let assemblerFile =  assemblerFile' `B.append` "\nHalt\n"
+    let assemblerFile = assemblerFile' `B.append` "Call 0 Main\nHalt\n"
+
 
     let chunks = filter ignoreLinePredicate $
                  map (B.dropWhile isSpace) $
