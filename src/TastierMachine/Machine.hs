@@ -208,13 +208,13 @@ run = do
         Instructions.WriteStr -> do
           let pos = smem ! (rtp-1)
           let len = dmem ! (pos)
-          let str = createString (len + pos) len
+          let str = createString (len + pos + 1) len
           tell $ [str]
           put $ machine { rpc = rpc + 1, rtp = rtp - 1 }
           run
 
           where createString _ 0 = ""
-                createString index len = (chr (fromIntegral (dmem ! len))):createString (index-1) (len-1)
+                createString index len = (chr (fromIntegral (dmem ! index))):createString (index-1) (len-1)
           
 
         Instructions.Leave  -> do
