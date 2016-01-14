@@ -30,6 +30,8 @@ data Instruction = Add
                  | Halt
                  | Dup
                  | Nop
+                 | LStack
+                 | LStackG
                  deriving (Eq, Ord, Show, Enum)
 
 data InstructionWord = Nullary Instruction
@@ -40,5 +42,5 @@ data InstructionWord = Nullary Instruction
 arguments :: Instruction -> Int
 arguments i =
   if i `elem` [Load, Sto, Call] then 2
-  else if i `elem` [LoadG, StoG, Const, Enter, Jmp, FJmp] then 1
+  else if i `elem` [LoadG, StoG, Const, Enter, Jmp, FJmp, LStack] then 1
   else 0

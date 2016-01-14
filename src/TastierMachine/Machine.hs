@@ -210,6 +210,12 @@ run = do
           put $ machine { rpc = rpc + 1, rtp = rtp - 1 }
           run
 
+        Instructions.LStackG -> do
+          {- Replace the address of the item on the stack with the item-}
+          let a =  smem ! (rtp-1)
+          put $ machine { rpc = rpc + 1, smem = (smem // [(rtp-1, (dmem ! a))]) }
+          run
+
         Instructions.Leave  -> do
           {-
             When we're leaving a procedure, we have to reset rbp to the
@@ -255,6 +261,14 @@ run = do
                                  smem = (smem // [(rtp, rbp)]) }
             _ -> put $ machine { rpc = rpc + 1, rtp = rtp + 1,
                                  smem = (smem // [(rtp, (dmem ! (a-3)))]) }
+          run
+
+        Instructions.LStack -> do
+          {- the lexical level difference is an argument, the frame index
+             is on the stack -}
+          let b =  smem ! (rtp-1)
+          let loadAddr = (followChain 0 a rbp smem) + 4 + b
+          put $ machine { rpc = rpc + 1, smem = (smem // [(rtp-1, (smem ! loadAddr))]) }
           run
 
         Instructions.Const  -> do
