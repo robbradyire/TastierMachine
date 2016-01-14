@@ -205,17 +205,10 @@ run = do
           put $ machine { rpc = rpc + 1, rtp = rtp - 1 }
           run
 
-        Instructions.WriteStr -> do
-          let pos = smem ! (rtp-1)
-          let len = dmem ! (pos)
-          let str = createString (len + pos + 1) len
-          tell $ [str]
+        Instructions.WriteCh -> do
+          tell $ [show $ chr $ fromIntegral $ smem ! (rtp-1)]
           put $ machine { rpc = rpc + 1, rtp = rtp - 1 }
           run
-
-          where createString _ 0 = ""
-                createString index len = (chr (fromIntegral (dmem ! index))):createString (index-1) (len-1)
-          
 
         Instructions.Leave  -> do
           {-
