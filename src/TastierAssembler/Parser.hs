@@ -46,7 +46,7 @@ parseInstruction lineNumber text =
       let a' = B.readInteger a
       in
         case a' of
-          Just x -> Right $ I.Unary I.LStack (fromIntegral $ fst x)
+          Just x -> Right $ I.Unary I.StoSt (fromIntegral $ fst x)
           _ -> Left $ ["StoSt", a]
 
     ["Load", a, b]  ->
