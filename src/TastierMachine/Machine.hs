@@ -216,6 +216,13 @@ run = do
           put $ machine { rpc = rpc + 1, smem = (smem // [(rtp-1, (dmem ! a))]) }
           run
 
+        Instructions.StoStG -> do
+          let val = smem ! (rtp-1)
+          let add = smem ! (rtp-2)
+          put $ machine { rpc = rpc + 1, rtp = rtp - 2,
+                          dmem = (dmem // [(add, val)]) }
+          run
+
         Instructions.Leave  -> do
           {-
             When we're leaving a procedure, we have to reset rbp to the
@@ -248,6 +255,14 @@ run = do
                                  rbp = (smem ! (rtp-1)) }
             _ -> put $ machine { rpc = rpc + 1, rtp = rtp - 1,
                                  dmem = (dmem // [(a-3, (smem ! (rtp-1)))]) }
+          run
+
+        Instructions.StoSt    -> do
+          let v = smem ! (rtp-1)
+          let b = smem ! (rtp-2)
+          let storeAddr = (followChain 0 a rbp smem) + 4 + b
+          put $ machine { rpc = rpc + 1, rtp = rtp - 2,
+                          smem = (smem // [(storeAddr, v)]) }
           run
 
         Instructions.LoadG  -> do

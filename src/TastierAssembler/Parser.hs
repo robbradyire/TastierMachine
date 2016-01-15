@@ -33,6 +33,7 @@ parseInstruction lineNumber text =
     ["Geq"]         -> Right $ I.Nullary I.Geq
     ["Neg"]         -> Right $ I.Nullary I.Neg
     ["LStackG"]     -> Right $ I.Nullary I.LStackG
+    ["StoStG"]      -> Right $ I.Nullary I.StoStG
 
     ["LStack", a]   ->
       let a' = B.readInteger a
@@ -40,6 +41,13 @@ parseInstruction lineNumber text =
         case a' of
           Just x -> Right $ I.Unary I.LStack (fromIntegral $ fst x)
           _ -> Left $ ["LStack", a]
+
+    ["StoSt", a]   ->
+      let a' = B.readInteger a
+      in
+        case a' of
+          Just x -> Right $ I.Unary I.LStack (fromIntegral $ fst x)
+          _ -> Left $ ["StoSt", a]
 
     ["Load", a, b]  ->
       let a' = B.readInteger a
