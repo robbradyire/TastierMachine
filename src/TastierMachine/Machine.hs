@@ -347,7 +347,6 @@ run = do
 
         Instructions.Sto    -> do --Store updates a variable in a calling frame
           let storeAddr = (followChain 0 a rbp smem) + 4 + b
-          tell [show $ fromIntegral storeAddr]
           put $ machine { rpc = rpc + 1, rtp = rtp - 1,
                           smem = (smem // [(storeAddr, (smem ! (rtp-1)))]) }
           run
