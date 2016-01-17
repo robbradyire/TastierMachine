@@ -32,6 +32,7 @@ parseInstruction lineNumber text =
     ["Leq"]         -> Right $ I.Nullary I.Leq
     ["Geq"]         -> Right $ I.Nullary I.Geq
     ["Neg"]         -> Right $ I.Nullary I.Neg
+    ["Pop"]         -> Right $ I.Nullary I.Pop
     ["LStackG"]     -> Right $ I.Nullary I.LStackG
     ["StoStG"]      -> Right $ I.Nullary I.StoStG
 

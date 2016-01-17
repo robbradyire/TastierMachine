@@ -34,6 +34,7 @@ data Instruction = Add
                  | LStackG
                  | StoSt
                  | StoStG
+                 | Pop
                  deriving (Eq, Ord, Show, Enum)
 
 data InstructionWord = Nullary Instruction

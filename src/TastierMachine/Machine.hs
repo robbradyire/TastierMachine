@@ -89,6 +89,10 @@ run = do
         Instructions.Halt -> do
           return ()
 
+        Instructions.Pop -> do
+          put $ machine { rpc = rpc + 1, rtp = rtp - 1 }
+          run
+
         Instructions.Dup -> do
           put $ machine { rpc = rpc + 1, rtp = rtp + 1,
                           smem = (smem // [(rtp, smem ! (rtp-1))]) }
